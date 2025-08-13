@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 1. 浏览器标签页标题已更改 -->
     <title>AI对话</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -48,12 +47,11 @@
             justify-content: space-between; 
             align-items: center; 
         }
-        /* 1. 为新的中文标题微调样式，确保美观 */
         .chat-header h2 { 
             margin: 0; 
-            font-size: 1.2rem; /* 稍微增大字号以匹配中文字符的视觉重量 */
+            font-size: 1.2rem;
             font-weight: 600; 
-            letter-spacing: 0.05em; /* 增加一点字符间距，让中文更舒展 */
+            letter-spacing: 0.05em;
         }
         
         .clear-button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-light); font-size: 0.85em; cursor: pointer; padding: 6px 12px; border-radius: 15px; transition: background-color 0.2s; font-weight: 500;}
@@ -87,7 +85,23 @@
         .copy-code-button.copied { background-color: #00a86b; }
         
         .chat-input-area { display: flex; padding: 15px 20px; border-top: 1px solid var(--border-color); background-color: #f9f9f9; flex-shrink: 0; align-items: center;}
-        #user-input { flex-grow: 1; border: 1px solid #ccc; border-radius: 20px; padding: 10px 18px; font-size: 1rem; outline: none; resize: none; background-color: #fff; }
+        
+        /* 2. 修改：优化textarea样式，使其能够自适应高度 */
+        #user-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 10px 18px;
+            font-size: 1rem;
+            outline: none;
+            resize: none; /* 禁止用户手动拖动调整大小 */
+            background-color: #fff;
+            font-family: inherit; /* 继承页面字体 */
+            line-height: 1.5;     /* 改善多行文本的可读性 */
+            max-height: 120px;    /* 限制最大高度，超过后将出现滚动条 */
+            box-sizing: border-box;
+            overflow-y: hidden;   /* 初始隐藏滚动条，由JS控制 */
+        }
         #user-input:focus { border-color: #555; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
         
         #send-button { background: #333; color: white; border: none; border-radius: 20px; padding: 10px 20px; margin-left: 10px; cursor: pointer; font-size: 0.95rem; font-weight: 500; flex-shrink: 0; transition: background-color 0.2s; }
@@ -103,7 +117,7 @@
         @media (max-width: 768px) {
             body { align-items: flex-start; }
             .chat-container { height: 100vh; max-height: 100vh; border-radius: 0; box-shadow: none; }
-            .chat-header h2 { font-size: 1.1rem; } /* 移动端标题大小 */
+            .chat-header h2 { font-size: 1.1rem; }
             .chat-box { padding: 15px; }
             .chat-input-area { padding: 10px 15px; }
         }
@@ -113,7 +127,6 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <!-- 1. 页面顶部标题已更改 -->
             <h2>天鲸夭天</h2>
             <button class="clear-button" id="clear-button" title="开启新对话">开启新对话</button>
         </div>
@@ -121,13 +134,13 @@
             <!-- 聊天记录将由JS加载 -->
         </div>
         <div class="chat-input-area">
-            <input type="text" id="user-input" placeholder="输入消息..." autocomplete="off">
+            <!-- 1. 修改：将 input 更改为 textarea 以支持多行输入和自动换行 -->
+            <textarea id="user-input" placeholder="输入消息..." autocomplete="off" rows="1"></textarea>
             <button id="send-button" title="发送">发送</button>
         </div>
     </div>
 
     <script>
-        // JavaScript 部分无需任何改动
         document.addEventListener('DOMContentLoaded', () => {
             const chatBox = document.getElementById('chat-box');
             const userInput = document.getElementById('user-input');
@@ -135,6 +148,22 @@
             const clearButton = document.getElementById('clear-button');
             const API_URL = "https://ttjyyt.qzz.io/api";
             let conversationHistory = [];
+
+            // 3. 新增：自动调整输入框高度的函数
+            const adjustInputHeight = () => {
+                const maxHeight = parseInt(window.getComputedStyle(userInput).maxHeight);
+                userInput.style.height = 'auto'; // 重置高度
+                
+                // 如果滚动高度超过最大高度，则只设置到最大高度，并显示滚动条
+                if (userInput.scrollHeight > maxHeight) {
+                    userInput.style.height = maxHeight + 'px';
+                    userInput.style.overflowY = 'auto';
+                } else {
+                    userInput.style.height = userInput.scrollHeight + 'px';
+                    userInput.style.overflowY = 'hidden';
+                }
+            };
+            
             function saveConversation() { localStorage.setItem('geminiChatHistory', JSON.stringify(conversationHistory)); }
             function loadConversation() {
                 const savedHistory = localStorage.getItem('geminiChatHistory');
@@ -195,6 +224,9 @@
                 conversationHistory.push({ role: 'user', parts: [{ text: userText }] });
                 userInput.value = '';
                 sendButton.disabled = true;
+                
+                adjustInputHeight(); // 5. 新增：发送消息后重置输入框高度
+
                 showThinkingIndicator();
                 let currentAiText = '';
                 const aiMessageElement = createMessageElement('received');
@@ -242,12 +274,10 @@
             }
             sendButton.addEventListener('click', sendMessage);
             clearButton.addEventListener('click', clearConversation);
-            userInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
+
+            // 4. 修改：移除“按Enter发送”的监听器，并添加新的“输入时调整高度”的监听器
+            userInput.addEventListener('input', adjustInputHeight);
+            
             loadConversation();
         });
     </script>
