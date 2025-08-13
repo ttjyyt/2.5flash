@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 1. 浏览器标签页标题已更改 -->
+    <title>AI对话</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --background-color: #f5f5f5;
+            --container-bg: #ffffff;
+            --header-gradient: linear-gradient(135deg, #444, #111);
+            --sent-gradient: linear-gradient(135deg, #555, #222);
+            --received-bg: #e9e9eb;
+            --text-dark: #212121;
+            --text-light: #ffffff;
+            --code-bg: #2d2d2d;
+            --border-color: #e0e0e0;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            background-color: var(--background-color); 
+            margin: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .chat-container { width: 100%; max-width: 700px; height: 95vh; background-color: var(--container-bg); border-radius: 12px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s ease; }
+        
+        .chat-header { 
+            background: var(--header-gradient); 
+            color: var(--text-light); 
+            padding: 12px 20px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+            flex-shrink: 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        /* 1. 为新的中文标题微调样式，确保美观 */
+        .chat-header h2 { 
+            margin: 0; 
+            font-size: 1.2rem; /* 稍微增大字号以匹配中文字符的视觉重量 */
+            font-weight: 600; 
+            letter-spacing: 0.05em; /* 增加一点字符间距，让中文更舒展 */
+        }
+        
+        .clear-button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-light); font-size: 0.85em; cursor: pointer; padding: 6px 12px; border-radius: 15px; transition: background-color 0.2s; font-weight: 500;}
+        .clear-button:hover { background: rgba(255,255,255,0.2); }
+
+        .chat-box { 
+            flex-grow: 1; 
+            padding: 20px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            user-select: text;
+            -webkit-user-select: text;
+            gap: 15px; 
+        }
+        
+        .message { 
+            max-width: 85%; 
+            padding: 10px 16px;
+            border-radius: 18px;
+            line-height: 1.55;
+            word-wrap: break-word; 
+            color: var(--text-dark); 
+        }
+        .sent { background: var(--sent-gradient); color: var(--text-light); align-self: flex-end; border-bottom-right-radius: 5px; }
+        .received { background-color: var(--received-bg); align-self: flex-start; border-bottom-left-radius: 5px; }
+        
+        .received pre { position: relative; background-color: var(--code-bg); color: #f8f8f2; padding: 20px 15px 15px; border-radius: 8px; overflow-x: auto; font-family: 'SF Mono', 'Courier New', Courier, monospace; }
+        .copy-code-button { position: absolute; top: 5px; right: 5px; background-color: #555; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 0.8em; opacity: 0; transition: opacity 0.2s; }
+        .received pre:hover .copy-code-button { opacity: 1; }
+        .copy-code-button.copied { background-color: #00a86b; }
+        
+        .chat-input-area { display: flex; padding: 15px 20px; border-top: 1px solid var(--border-color); background-color: #f9f9f9; flex-shrink: 0; align-items: center;}
+        #user-input { flex-grow: 1; border: 1px solid #ccc; border-radius: 20px; padding: 10px 18px; font-size: 1rem; outline: none; resize: none; background-color: #fff; }
+        #user-input:focus { border-color: #555; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
+        
+        #send-button { background: #333; color: white; border: none; border-radius: 20px; padding: 10px 20px; margin-left: 10px; cursor: pointer; font-size: 0.95rem; font-weight: 500; flex-shrink: 0; transition: background-color 0.2s; }
+        #send-button:hover { background-color: #000; }
+        #send-button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .thinking-indicator { align-self: flex-start; display: flex; align-items: center; background-color: var(--received-bg); padding: 12px 18px; border-radius: 20px; }
+        .thinking-indicator span { display: inline-block; width: 8px; height: 8px; background-color: #888; border-radius: 50%; margin: 0 2px; animation: bounce 1.4s infinite ease-in-out both; }
+        .thinking-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1.0); } }
+
+        @media (max-width: 768px) {
+            body { align-items: flex-start; }
+            .chat-container { height: 100vh; max-height: 100vh; border-radius: 0; box-shadow: none; }
+            .chat-header h2 { font-size: 1.1rem; } /* 移动端标题大小 */
+            .chat-box { padding: 15px; }
+            .chat-input-area { padding: 10px 15px; }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <!-- 1. 页面顶部标题已更改 -->
+            <h2>天鲸夭天</h2>
+            <button class="clear-button" id="clear-button" title="开启新对话">开启新对话</button>
+        </div>
+        <div class="chat-box" id="chat-box">
+            <!-- 聊天记录将由JS加载 -->
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="user-input" placeholder="输入消息..." autocomplete="off">
+            <button id="send-button" title="发送">发送</button>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript 部分无需任何改动
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatBox = document.getElementById('chat-box');
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const clearButton = document.getElementById('clear-button');
+            const API_URL = "https://ttjyyt.qzz.io/api";
+            let conversationHistory = [];
+            function saveConversation() { localStorage.setItem('geminiChatHistory', JSON.stringify(conversationHistory)); }
+            function loadConversation() {
+                const savedHistory = localStorage.getItem('geminiChatHistory');
+                if (savedHistory) {
+                    conversationHistory = JSON.parse(savedHistory);
+                    chatBox.innerHTML = '';
+                    conversationHistory.forEach(message => {
+                        addMessageToUI(message.parts[0].text, message.role === 'user' ? 'sent' : 'received');
+                    });
+                    enhanceAllCodeBlocks();
+                } else {
+                    addMessageToUI('你好，哈基米！', 'received');
+                }
+            }
+            function clearConversation() {
+                conversationHistory = [];
+                localStorage.removeItem('geminiChatHistory');
+                chatBox.innerHTML = '';
+                addMessageToUI('新对话已开启。', 'received');
+            }
+            function showThinkingIndicator() {
+                const indicator = document.createElement('div');
+                indicator.className = 'thinking-indicator';
+                indicator.innerHTML = '<span></span><span></span><span></span>';
+                chatBox.appendChild(indicator);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+            function hideThinkingIndicator() {
+                const indicator = document.querySelector('.thinking-indicator');
+                if (indicator) indicator.remove();
+            }
+            function enhanceCodeBlocks(container) {
+                const codeBlocks = container.querySelectorAll('pre');
+                codeBlocks.forEach(pre => {
+                    if (pre.querySelector('.copy-code-button')) return;
+                    const button = document.createElement('button');
+                    button.className = 'copy-code-button';
+                    button.textContent = '复制';
+                    button.onclick = () => {
+                        const code = pre.querySelector('code').textContent;
+                        navigator.clipboard.writeText(code).then(() => {
+                            button.textContent = '已复制!';
+                            button.classList.add('copied');
+                            setTimeout(() => {
+                                button.textContent = '复制';
+                                button.classList.remove('copied');
+                            }, 2000);
+                        });
+                    };
+                    pre.appendChild(button);
+                });
+            }
+            function enhanceAllCodeBlocks() { enhanceCodeBlocks(chatBox); }
+            async function sendMessage() {
+                const userText = userInput.value.trim();
+                if (userText === '') return;
+                addMessageToUI(userText, 'sent');
+                conversationHistory.push({ role: 'user', parts: [{ text: userText }] });
+                userInput.value = '';
+                sendButton.disabled = true;
+                showThinkingIndicator();
+                let currentAiText = '';
+                const aiMessageElement = createMessageElement('received');
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: conversationHistory })
+                    });
+                    hideThinkingIndicator();
+                    if (!response.ok) throw new Error(`网络错误: ${response.status}`);
+                    chatBox.appendChild(aiMessageElement);
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        currentAiText += decoder.decode(value);
+                        aiMessageElement.innerHTML = marked.parse(currentAiText);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                } catch (error) {
+                    hideThinkingIndicator();
+                    addMessageToUI(`请求出错: ${error.message}`, 'error');
+                } finally {
+                    if (currentAiText) {
+                       conversationHistory.push({ role: 'model', parts: [{ text: currentAiText }] });
+                       enhanceCodeBlocks(aiMessageElement);
+                       saveConversation();
+                    }
+                    sendButton.disabled = false;
+                    userInput.focus();
+                }
+            }
+            function createMessageElement(type) {
+                const el = document.createElement('div');
+                el.className = `message ${type}`;
+                return el;
+            }
+            function addMessageToUI(text, type) {
+                const messageElement = createMessageElement(type);
+                messageElement.innerHTML = marked.parse(text); 
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+            sendButton.addEventListener('click', sendMessage);
+            clearButton.addEventListener('click', clearConversation);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            loadConversation();
+        });
+    </script>
+</body>
+</html>
