@@ -144,7 +144,7 @@
             const userInput = document.getElementById('user-input');
             const sendButton = document.getElementById('send-button');
             const clearButton = document.getElementById('clear-button');
-            const API_URL = "https://ttjyyt.qzz.io/api";
+            const API_URL = "https://ai.tjytmiao.dpdns.org";
             let conversationHistory = [];
 
             const adjustInputHeight = () => {
@@ -226,6 +226,7 @@
                 showThinkingIndicator();
                 let currentAiText = '';
                 const aiMessageElement = createMessageElement('received');
+                let isFirstChunk = true; // FIX 1: Add a flag for the first chunk
                 try {
                     const response = await fetch(API_URL, {
                         method: 'POST',
@@ -234,28 +235,36 @@
                     });
                     hideThinkingIndicator();
                     if (!response.ok) throw new Error(`网络错误: ${response.status}`);
-                    chatBox.appendChild(aiMessageElement);
+                    
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     while (true) {
                         const { value, done } = await reader.read();
                         if (done) break;
-                        currentAiText += decoder.decode(value);
+                        
+                        // FIX 1: Only add the message bubble to the DOM on the first chunk
+                        if (isFirstChunk) {
+                            chatBox.appendChild(aiMessageElement);
+                            isFirstChunk = false;
+                        }
+
+                        currentAiText += decoder.decode(value, { stream: true });
                         aiMessageElement.innerHTML = marked.parse(currentAiText);
+                        
+                        // FIX 2: Enhance code blocks after every update
+                        enhanceCodeBlocks(aiMessageElement);
+
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 } catch (error) {
                     hideThinkingIndicator();
-                    addMessageToUI(`请求出错: ${error.message}`, 'error');
+                    addMessageToUI(`请求出错: ${error.message}`, 'received'); // Changed to 'received' for consistent styling
                 } finally {
                     if (currentAiText) {
                        conversationHistory.push({ role: 'model', parts: [{ text: currentAiText }] });
-                       enhanceCodeBlocks(aiMessageElement);
                        saveConversation();
                     }
                     sendButton.disabled = false;
-                    // 1. 修改：移除此行代码以防止AI回复后自动聚焦输入框和拉起键盘
-                    // userInput.focus(); 
                 }
             }
             function createMessageElement(type) {
@@ -267,6 +276,7 @@
                 const messageElement = createMessageElement(type);
                 messageElement.innerHTML = marked.parse(text); 
                 chatBox.appendChild(messageElement);
+                enhanceCodeBlocks(messageElement); // Also enhance here for loaded messages
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
             sendButton.addEventListener('click', sendMessage);
